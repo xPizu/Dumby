@@ -102,15 +102,15 @@ local function ListenLoop()
             -- Skip
         elseif message == "returning_home" then
             print("[i] Dumby is heading back home.")
-            playReturn()
+            PlayReturn()
 
         elseif message == nil then
             print("[!] No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
-            playOffline()
+            PlayOffline()
         end
     end
 end
 
 -- Launch the program
-bootCheck()
-parallel.waitForAny(CommandLooop, ListenLoop)
+BootCheck()
+parallel.waitForAny(CommandLoop, ListenLoop)
