@@ -39,7 +39,7 @@ function ROBOT:ReturnHome()
     self.Navigator:GoHome()
     self.Inventory:Dump()
     self.Fuel:AutoRefuel()
-    self:Log("Returned to base. Found minerals: " .. self.Explorer.oreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
+    self:Log("Returned to base. Found minerals: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
 end
 
 function ROBOT:HeartbeatLoop()
@@ -91,7 +91,7 @@ function ROBOT:Run()
         function() self:HeartbeatLoop() end
     )
 
-    self:Log("Completed exploration mission. Minerals found: " .. self.Explorer.oreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
+    self:Log("Completed exploration mission. Minerals found: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
 end
 
 return ROBOT

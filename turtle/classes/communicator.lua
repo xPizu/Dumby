@@ -27,7 +27,7 @@ end
 
 function Communicator:Broadcast(message)
     if self:IsAvailable() then
-        rednet.broadcast(message, CONFIG.rednetProtocol)
+        rednet.broadcast(message, CONFIG.RednetProtocol)
     end
 end
 

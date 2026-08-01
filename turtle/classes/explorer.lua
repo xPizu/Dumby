@@ -55,7 +55,7 @@ function Explorer:MineVeinAt(nav, dir, depth)
         self:ScanAndMine(nav, depth + 1)
         nav:Up()
     else
-        nav:faceDirection(dir)
+        nav:FaceDirection(dir)
         if not turtle.detect() then return end
         local ok, data = turtle.inspect()
         if not (ok and CONFIG.OreWhitelist[data.name]) then return end
@@ -78,7 +78,7 @@ function Explorer:ScanAndMine(nav, depth)
     for f = 1, 4 do
         self:MineVeinAt(nav, f, depth)
     end
-    nav:faceDirection(originalFacing)
+    nav:FaceDirection(originalFacing)
 end
 
 function Explorer:RunSpiral(nav, maxRadius)

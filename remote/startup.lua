@@ -64,10 +64,10 @@ local function BootCheck()
     local _, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
     if message == "alive" then
         print("Dumby is online !")
-        playOnline()
+        PlayOnline()
     else
         print("No signal received during " .. BOOT_TIMEOUT .. "s. Maybe Dumby is offline.")
-        playOffline()
+        PlayOffline()
     end
     print("")
 end
@@ -85,8 +85,8 @@ local function CommandLoop()
             rednet.broadcast("start", PROTOCOL)
             print("Launch signal sent.")
         elseif input == "clear" then
-            clearScreen()
-            printHeader()
+            ClearScreen()
+            PrintHeader()
         else
             print("Unknown command (only 'start', 'stop' and 'clear' are supported for now).")
         end
