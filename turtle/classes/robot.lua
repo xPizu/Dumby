@@ -34,7 +34,7 @@ function ROBOT:CheckStartupFuel()
 end
 
 function ROBOT:ReturnHome()
-    self:Log("Return to base (" .. tostring(self.Explorer.stopReason or "mission complete") .. ")")
+    self:Log("Return to base (" .. tostring(self.Explorer.StopReason or "mission complete") .. ")")
     self.Communicator:Broadcast("returning_home")
     self.Navigator:GoHome()
     self.Inventory:Dump()
@@ -78,7 +78,7 @@ function ROBOT:Run()
                         end 
                     end,
                     stop = function()
-                        self.Explorer.stopRequested = true 
+                        self.Explorer.StopRequested = true
                     end
                 })
             else
