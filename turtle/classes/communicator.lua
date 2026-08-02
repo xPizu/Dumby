@@ -32,28 +32,29 @@ function Communicator:IsAvailable()
     return self.modemSide ~= nil
 end
 
-function Communicator:ResolvePeer()
-    if not self.peerId then
-        self.peerId = rednet.lookup(self.protocol, self.peerHostname)
-    end
-    return self.peerId
-end
-
 function Communicator:Broadcast(message)
     if not self:IsAvailable() then return end
 
-    local peerId = self:ResolvePeer()
-    if peerId then
-        rednet.send(peerId, message, self.protocol)
+    if self.peerId then
+        rednet.send(self.peerId, message, self.protocol)
     else
         rednet.broadcast(message, self.protocol)
     end
 end
 
+-- No live rednet.lookup on the hot path here: it's a blocking network
+-- round-trip and doing it per-message caused missed heartbeats and dropped
+-- stop commands. Instead we trust the first sender we ever hear from on this
+-- protocol and lock onto them -- fine for a 1-to-1 turtle/remote pairing.
 function Communicator:Listen(handlers)
     while true do
         local senderId, message = rednet.receive(self.protocol)
-        if senderId == self:ResolvePeer() then
+
+        if not self.peerId then
+            self.peerId = senderId
+        end
+
+        if senderId == self.peerId then
             local handler = handlers[message]
             if handler then handler(message) end
         end

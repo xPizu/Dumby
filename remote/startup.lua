@@ -6,20 +6,17 @@ rednet.open(peripheral.getName(MODEM))
 
 local SPEAKER = peripheral.find("speaker")
 local PROTOCOL = "dumby"
-local TURTLE_HOSTNAME = "dumby-turtle"
 local REMOTE_HOSTNAME = "dumby-remote"
 local BOOT_TIMEOUT = 5
 local ALIVE_TIMEOUT = 15
 
 rednet.host(PROTOCOL, REMOTE_HOSTNAME)
 
+-- No live rednet.lookup here: it's a blocking network round-trip and doing
+-- it per-message caused missed heartbeats and dropped stop commands. We
+-- trust the first sender we ever hear from on this protocol and lock onto
+-- them -- fine for a 1-to-1 turtle/remote pairing.
 local turtleId = nil
-local function ResolveTurtle()
-    if not turtleId then
-        turtleId = rednet.lookup(PROTOCOL, TURTLE_HOSTNAME)
-    end
-    return turtleId
-end
 
 local SOUND_ONLINE_URL = "https://files.catbox.moe/5mseje.dfpwm"
 local SOUND_OFFLINE_URL = "https://files.catbox.moe/yubhv5.dfpwm"
@@ -66,20 +63,22 @@ local function PrintHeader()
     print("Ctrl + T to quit.")
 end
 
+local function Log(msg) print("[Remote] " .. msg) end
+
 -- Boot Check: Wait for Dumby to send a signal, if not received within BOOT_TIMEOUT seconds, assume Dumby is offline.
 local function BootCheck()
     ClearScreen()
     PrintHeader()
     print("")
-    print("Waiting for Dumby...")
+    Log("Waiting for Dumby...")
 
     local senderId, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
-    if message == "alive" and senderId == ResolveTurtle() then
+    if message == "alive" then
         turtleId = senderId
-        print("Dumby is online !")
+        Log("Dumby is online!")
         PlayOnline()
     else
-        print("No signal received during " .. BOOT_TIMEOUT .. "s. Maybe Dumby is offline.")
+        Log("No signal received during " .. BOOT_TIMEOUT .. "s. Maybe Dumby is offline.")
         PlayOffline()
     end
     print("")
@@ -89,27 +88,23 @@ end
 local function CommandLoop()
     while true do
         io.write("> ")
-        
+
         local input = read()
-        if input == "stop" then
-            if ResolveTurtle() then
-                rednet.send(turtleId, "stop", PROTOCOL)
-                print("Return signal sent.")
+        if input == "stop" or input == "start" then
+            -- Fall back to broadcast if we haven't heard from Dumby yet:
+            -- the turtle locks onto whoever it hears from first, so this
+            -- first command still gets through and completes the pairing.
+            if turtleId then
+                rednet.send(turtleId, input, PROTOCOL)
             else
-                print("Dumby not found on the network.")
+                rednet.broadcast(input, PROTOCOL)
             end
-        elseif input == "start" then
-            if ResolveTurtle() then
-                rednet.send(turtleId, "start", PROTOCOL)
-                print("Launch signal sent.")
-            else
-                print("Dumby not found on the network.")
-            end
+            Log((input == "stop" and "Return" or "Launch") .. " signal sent.")
         elseif input == "clear" then
             ClearScreen()
             PrintHeader()
         else
-            print("Unknown command (only 'start', 'stop' and 'clear' are supported for now).")
+            Log("Unknown command (only 'start', 'stop' and 'clear' are supported for now).")
         end
     end
 end
@@ -119,16 +114,20 @@ local function ListenLoop()
     while true do
         local senderId, message = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
 
-        if message ~= nil and senderId ~= ResolveTurtle() then
+        if not turtleId and senderId then
+            turtleId = senderId
+        end
+
+        if message ~= nil and senderId ~= turtleId then
             -- Ignore messages from anyone but our own turtle
         elseif message == "alive" then
             -- Skip
         elseif message == "returning_home" then
-            print("[i] Dumby is heading back home.")
+            Log("Dumby is heading back home.")
             PlayReturn()
 
         elseif message == nil then
-            print("[!] No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
+            Log("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
             PlayOffline()
         end
     end
