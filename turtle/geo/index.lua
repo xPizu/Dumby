@@ -21,9 +21,17 @@ if not link:IsAvailable() then
     error("No modem found on this Geo turtle.")
 end
 
-local scanner = peripheral.find("geoScanner")
+local scanner = nil
+for _, name in ipairs(peripheral.getNames()) do
+    local ptype = peripheral.getType(name)
+    Log("Peripheral '" .. name .. "': " .. tostring(ptype))
+    if ptype == "geoScanner" then
+        scanner = peripheral.wrap(name)
+    end
+end
+
 if not scanner then
-    error("No Geo Scanner found on this turtle.")
+    error("No Geo Scanner found on this turtle (see peripheral list above).")
 end
 
 local FOLLOW_ACTIONS = {
