@@ -1,15 +1,20 @@
 local UI = {}
 
+local ACCENT = colors.cyan
+
 local BUTTON_COLORS = {
     start = colors.green,
     stop = colors.orange,
     rescue = colors.red,
     status = colors.lightBlue,
-    goto = colors.purple,
+    goto = colors.magenta,
     sound = colors.gray,
     clear = colors.gray,
     help = colors.gray,
 }
+
+local BUTTON_W = 10
+local BUTTON_H = 3
 
 local function isColor()
     return term.isColor and term.isColor()
@@ -20,11 +25,41 @@ local function centered(text, width)
     return string.rep(" ", pad) .. text
 end
 
--- Draws the fixed header (title, live status, colored command buttons) on
--- whatever terminal is currently active. Returns:
---   rows   -- { [screenRow] = command } for click handling
---   nextY  -- first free row below the header, where the scrolling log
---             window should start
+local function line(w, char)
+    term.setTextColor(isColor() and ACCENT or colors.white)
+    term.write(string.rep(char or "-", w))
+end
+
+local function pill(text, bg)
+    if isColor() then
+        term.setBackgroundColor(bg)
+        term.setTextColor(colors.black)
+    end
+    term.write(" " .. text .. " ")
+    term.setBackgroundColor(colors.black)
+    term.setTextColor(colors.white)
+end
+
+local function drawButton(x, y, cmd)
+    local color = BUTTON_COLORS[cmd.name] or colors.gray
+    for row = 0, BUTTON_H - 1 do
+        term.setCursorPos(x, y + row)
+        if isColor() then term.setBackgroundColor(color) end
+        term.write(string.rep(" ", BUTTON_W))
+    end
+    term.setCursorPos(x, y + 1)
+    if isColor() then term.setTextColor(colors.black) end
+    term.write(centered(cmd.name:upper(), BUTTON_W))
+    term.setBackgroundColor(colors.black)
+    term.setTextColor(colors.white)
+end
+
+-- Draws the fixed header (title, live status, a grid of plain colored
+-- buttons -- name only, no description text) on whatever terminal is
+-- currently active. Returns:
+--   hitboxes -- list of {x1,y1,x2,y2,cmd} for click handling
+--   nextY    -- first free row below the header, where the scrolling log
+--               window should start
 function UI.Draw(commandList, status)
     local w = term.getSize()
 
@@ -33,49 +68,62 @@ function UI.Draw(commandList, status)
     term.clear()
 
     term.setCursorPos(1, 1)
-    if isColor() then term.setBackgroundColor(colors.blue) end
-    term.clearLine()
-    term.write(centered("DUMBY -- REMOTE CONTROL", w))
-    term.setBackgroundColor(colors.black)
+    line(w, "=")
 
     term.setCursorPos(1, 2)
+    if isColor() then term.setBackgroundColor(ACCENT); term.setTextColor(colors.black) end
     term.clearLine()
-    if isColor() then term.setTextColor(status.online and colors.lime or colors.red) end
-    term.write(" " .. (status.online and "ONLINE" or "OFFLINE"))
+    term.write(centered(">> DUMBY REMOTE CONTROL <<", w))
+    term.setBackgroundColor(colors.black)
     term.setTextColor(colors.white)
-    if status.fuel then
-        term.write(string.format("  fuel=%s ore=%s pos(%d,%d,%d)",
-            tostring(status.fuel), tostring(status.ore or 0),
-            status.x or 0, status.y or 0, status.z or 0))
-    end
 
     term.setCursorPos(1, 3)
-    term.setTextColor(colors.gray)
-    term.write(string.rep("-", w))
-    term.setTextColor(colors.white)
+    line(w, "=")
 
-    local rows = {}
-    local y = 4
-    for _, cmd in ipairs(commandList) do
-        term.setCursorPos(1, y)
-        term.clearLine()
-        if isColor() then
-            term.setBackgroundColor(BUTTON_COLORS[cmd.name] or colors.gray)
-            term.setTextColor(colors.white)
-        end
-        term.write(" " .. cmd.name:upper() .. " ")
-        term.setBackgroundColor(colors.black)
-        term.write(" " .. cmd.description)
-        rows[y] = cmd
-        y = y + 1
+    term.setCursorPos(1, 4)
+    term.clearLine()
+    pill(status.online and "ONLINE" or "OFFLINE", status.online and colors.lime or colors.red)
+    if status.fuel then
+        term.setTextColor(colors.lightGray)
+        term.write(string.format("  fuel:%s  ore:%s  pos(%d,%d,%d)",
+            tostring(status.fuel), tostring(status.ore or 0),
+            status.x or 0, status.y or 0, status.z or 0))
+        term.setTextColor(colors.white)
     end
 
-    term.setCursorPos(1, y)
-    term.setTextColor(colors.gray)
-    term.write(string.rep("-", w))
-    term.setTextColor(colors.white)
+    term.setCursorPos(1, 5)
+    line(w, "-")
 
-    return rows, y + 1
+    local cols = math.max(1, math.floor((w + 1) / (BUTTON_W + 1)))
+    local hitboxes = {}
+    local gridTop = 7
+    for i, cmd in ipairs(commandList) do
+        local col = (i - 1) % cols
+        local row = math.floor((i - 1) / cols)
+        local x = col * (BUTTON_W + 1) + 1
+        local y = gridTop + row * (BUTTON_H + 1)
+
+        drawButton(x, y, cmd)
+        table.insert(hitboxes, { x1 = x, y1 = y, x2 = x + BUTTON_W - 1, y2 = y + BUTTON_H - 1, cmd = cmd })
+    end
+
+    local rowCount = math.ceil(#commandList / cols)
+    local nextY = gridTop + rowCount * (BUTTON_H + 1)
+
+    term.setCursorPos(1, nextY)
+    line(w, "=")
+
+    return hitboxes, nextY + 1
+end
+
+-- Finds which button (if any) a mouse_click's screen coordinates hit.
+function UI.HitTest(hitboxes, x, y)
+    for _, box in ipairs(hitboxes) do
+        if x >= box.x1 and x <= box.x2 and y >= box.y1 and y <= box.y2 then
+            return box.cmd
+        end
+    end
+    return nil
 end
 
 return UI

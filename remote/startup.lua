@@ -50,8 +50,8 @@ local ctx = { send = Send, log = LOG, state = state, commandList = commandList, 
 local function Redraw(clearLog)
     term.redirect(mainTerm)
     local w, h = term.getSize()
-    local rows, logStartY = UI.Draw(commandList, state)
-    ctx.commandRows = rows
+    local hitboxes, logStartY = UI.Draw(commandList, state)
+    ctx.hitboxes = hitboxes
 
     if not logWindow or clearLog then
         logWindow = window.create(mainTerm, 1, logStartY, w, math.max(1, h - logStartY + 1))
@@ -174,8 +174,8 @@ end
 -- header runs it (zero-arg commands only -- 'goto'/'sound' still need typing).
 local function MenuClickLoop()
     while true do
-        local _, _, _, y = os.pullEvent("mouse_click")
-        local cmd = ctx.commandRows[y]
+        local _, _, x, y = os.pullEvent("mouse_click")
+        local cmd = UI.HitTest(ctx.hitboxes, x, y)
         if cmd then
             LOG.Info("[click] " .. cmd.name)
             cmd.execute(ctx, {})

@@ -85,6 +85,28 @@ function Explorer:MineTargets(nav)
     end
 end
 
+-- Ore reported by a companion Geo turtle (already converted to this
+-- turtle's own coordinate frame -- see Robot's ore_found handler).
+function Explorer:QueueRemoteOre(x, y, z)
+    self.RemoteTargets = self.RemoteTargets or {}
+    table.insert(self.RemoteTargets, { x = x, y = y, z = z })
+end
+
+function Explorer:DrainRemoteTargets(nav)
+    if not self.RemoteTargets then return end
+
+    while #self.RemoteTargets > 0 do
+        if not self:CheckSafety(nav) then return end
+
+        local target = table.remove(self.RemoteTargets, 1)
+        local beforeX, beforeY, beforeZ = nav.x, nav.y, nav.z
+        nav:GoTo(target.x, target.y, target.z)
+        if nav.x ~= beforeX or nav.y ~= beforeY or nav.z ~= beforeZ then
+            self.OreCount = self.OreCount + 1
+        end
+    end
+end
+
 -- Recurses into any open cavity (already air) or whitelisted ore, not just ore --
 -- this is what lets the turtle actually follow natural caves instead of      --
 -- stopping dead the moment a branch isn't a solid ore block.                 --
@@ -154,6 +176,7 @@ function Explorer:RunSpiralLayer(nav, maxRadius)
                 return false
             end
             self:MineTargets(nav)
+            self:DrainRemoteTargets(nav)
             self:ScanAndMine(nav)
         end
 

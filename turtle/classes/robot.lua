@@ -16,6 +16,7 @@ function ROBOT:New()
     self.Communicator = COMMUNICATOR:New(CONFIG.RednetProtocol, CONFIG.RednetTurtleHostname, CONFIG.RednetRemoteHostname)
     self.ChunkyLink = COMMUNICATOR:New(CONFIG.RednetChunkyProtocol, CONFIG.RednetMiningHostname, CONFIG.RednetChunkyHostname)
     self.Navigator.OnMove = function(action) self.ChunkyLink:Broadcast(action) end
+    self.GeoLink = COMMUNICATOR:New(CONFIG.RednetGeoProtocol, CONFIG.RednetMiningHostname, CONFIG.RednetGeoHostname)
     self.Explorer = EXPLORER:New(self.Fuel, self.Inventory)
     self.Started = false
     return self
@@ -61,6 +62,22 @@ function ROBOT:SendStatus()
         ore = self.Explorer.OreCount,
         started = self.Started,
         stopReason = self.Explorer.StopReason,
+    })
+end
+
+-- Listens for ore reported by a companion Geo turtle and converts its
+-- coordinates (in the Geo turtle's own frame) into ours via the configured
+-- boot offset, then hands them to the Explorer to path to.
+function ROBOT:GeoLinkLoop()
+    if not self.GeoLink:IsAvailable() then
+        while true do sleep(3600) end
+    end
+
+    local offset = CONFIG.GeoBootOffset
+    self.GeoLink:Listen({
+        ore_found = function(msg)
+            self.Explorer:QueueRemoteOre(msg.x + offset.x, msg.y + offset.y, msg.z + offset.z)
+        end,
     })
 end
 
@@ -139,7 +156,8 @@ function ROBOT:Run()
                 while true do sleep(3600) end
             end
         end,
-        function() self:HeartbeatLoop() end
+        function() self:HeartbeatLoop() end,
+        function() self:GeoLinkLoop() end
     )
 
     self:Log("Completed exploration mission. Minerals found: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
