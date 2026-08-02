@@ -77,7 +77,8 @@ local function FollowLoop()
         if senderId == peerId and FOLLOW_ACTIONS[message] then
             table.insert(queue, message)
             while #queue > CONFIG.ChunkyFollowBuffer do
-                ExecuteFollow(table.remove(queue, 1))
+                local ok, err = pcall(ExecuteFollow, table.remove(queue, 1))
+                if not ok then Log("Move error: " .. tostring(err)) end
             end
         end
     end
@@ -90,8 +91,8 @@ local function ScanLoop()
     while true do
         sleep(CONFIG.GeoScanInterval)
 
-        local blocks = scanner.scan(CONFIG.GeoScanRadius)
-        if blocks then
+        local ok, blocks = pcall(function() return scanner.scan(CONFIG.GeoScanRadius) end)
+        if ok and blocks then
             for _, b in ipairs(blocks) do
                 if CONFIG.OreWhitelist[b.name] then
                     link:Broadcast({
@@ -102,8 +103,14 @@ local function ScanLoop()
                     })
                 end
             end
+        elseif not ok then
+            Log("Scan error: " .. tostring(blocks))
         end
     end
 end
 
-parallel.waitForAny(FollowLoop, ScanLoop)
+local ok, err = pcall(parallel.waitForAny, FollowLoop, ScanLoop)
+if not ok then
+    Log("FATAL: " .. tostring(err))
+    print("Program halted.")
+end

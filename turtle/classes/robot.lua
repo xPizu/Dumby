@@ -100,18 +100,39 @@ function ROBOT:Run()
 
     parallel.waitForAny(
         function()
-            while not self.Started do
-                sleep(0.5)
+            while true do
+                while not self.Started do
+                    sleep(0.5)
+                end
+                self:Log("Launching exploration mission...")
+
+                local ok, err = pcall(function()
+                    if self.PendingGoto then
+                        local g = self.PendingGoto
+                        self:Log("Heading to goto target (" .. g.x .. ", " .. g.y .. ", " .. g.z .. ")...")
+                        self.Navigator:GoTo(g.x, g.y, g.z)
+                        self.PendingGoto = nil
+                    end
+                    self.Explorer:RunSpiral(self.Navigator, CONFIG.MaxRadius)
+                end)
+
+                if not ok then
+                    self:Log("CRASH during exploration: " .. tostring(err))
+                    self.Explorer.StopReason = "Crash: " .. tostring(err)
+                end
+
+                self:ReturnHome()
+                self:Log("Completed exploration mission. Minerals found: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
+
+                self.Started = false
+                self.Explorer.StopRequested = false
+                self.Explorer.Rescue = false
+                self.Explorer.StopReason = nil
+                self.Explorer.OreCount = 0
+                self.Navigator.x, self.Navigator.y, self.Navigator.z = 0, 0, 0
+
+                self:Log("Waiting for start signal...")
             end
-            self:Log("Launching exploration mission...")
-            if self.PendingGoto then
-                local g = self.PendingGoto
-                self:Log("Heading to goto target (" .. g.x .. ", " .. g.y .. ", " .. g.z .. ")...")
-                self.Navigator:GoTo(g.x, g.y, g.z)
-                self.PendingGoto = nil
-            end
-            self.Explorer:RunSpiral(self.Navigator, CONFIG.MaxRadius)
-            self:ReturnHome()
         end,
         function()
             if self.Communicator:IsAvailable() then
@@ -150,17 +171,17 @@ function ROBOT:Run()
                     end,
                 })
             else
-                self:Log("No wireless modem detected. Remote control is unavailable. The robot will run the exploration mission in 5 seconds.")
+                self:Log("No wireless modem detected. Remote control is unavailable. The robot will run continuously, starting in 5 seconds.")
                 sleep(5)
-                self.Started = true
-                while true do sleep(3600) end
+                while true do
+                    self.Started = true
+                    sleep(1)
+                end
             end
         end,
         function() self:HeartbeatLoop() end,
         function() self:GeoLinkLoop() end
     )
-
-    self:Log("Completed exploration mission. Minerals found: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
 end
 
 return ROBOT

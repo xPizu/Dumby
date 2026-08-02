@@ -75,7 +75,8 @@ while true do
         table.insert(queue, message)
 
         while #queue > CONFIG.ChunkyFollowBuffer do
-            Execute(table.remove(queue, 1))
+            local ok, err = pcall(Execute, table.remove(queue, 1))
+            if not ok then Log("Move error: " .. tostring(err)) end
         end
     end
 end

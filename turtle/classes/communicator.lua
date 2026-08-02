@@ -59,7 +59,12 @@ function Communicator:Listen(handlers)
 
         if senderId == self.peerId and type(message) == "table" then
             local handler = handlers[message.cmd]
-            if handler then handler(message) end
+            if handler then
+                local ok, err = pcall(handler, message)
+                if not ok then
+                    print("[!] Handler error for '" .. tostring(message.cmd) .. "': " .. tostring(err))
+                end
+            end
         end
     end
 end
