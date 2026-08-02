@@ -22,6 +22,7 @@ return {
     FuelItems = {
         ["minecraft:coal"] = true,
         ["minecraft:charcoal"] = true,
+        ["minecraft:coal_block"] = true,
     },
 
     OreWhitelist = {
