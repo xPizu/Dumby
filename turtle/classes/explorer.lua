@@ -49,7 +49,7 @@ end
 -- adjacent-check kept walking right past. Falls back to doing nothing if no
 -- Geo Scanner is attached (the cave-follow logic below still works alone).
 function Explorer:ScanForOre(nav)
-    local geo = peripheral.find("geoScanner")
+    local geo = peripheral.find("geoScanner") or peripheral.find("geo_scanner")
     if not geo then return {} end
 
     local blocks = geo.scan(CONFIG.GeoScanRadius)

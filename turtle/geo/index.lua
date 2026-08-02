@@ -25,7 +25,7 @@ local scanner = nil
 for _, name in ipairs(peripheral.getNames()) do
     local ptype = peripheral.getType(name)
     Log("Peripheral '" .. name .. "': " .. tostring(ptype))
-    if ptype == "geoScanner" then
+    if ptype == "geoScanner" or ptype == "geo_scanner" then
         scanner = peripheral.wrap(name)
     end
 end
