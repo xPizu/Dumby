@@ -1,11 +1,15 @@
-local CONFIG = require("config")
-
 local Communicator = {}
 Communicator.__index = Communicator
 
-function Communicator:New()
+-- protocol/selfHostname/peerHostname let a turtle open several independent
+-- rednet links (e.g. one to the human remote, one to a follower turtle)
+-- without them ever seeing each other's traffic.
+function Communicator:New(protocol, selfHostname, peerHostname)
     local self = setmetatable({}, Communicator)
     self.modemSide = nil
+    self.protocol = protocol
+    self.peerHostname = peerHostname
+    self.peerId = nil
 
     for _, side in ipairs(peripheral.getNames()) do
         if peripheral.getType(side) == "modem" then
@@ -15,7 +19,10 @@ function Communicator:New()
     end
 
     if self.modemSide then
-        rednet.open(self.modemSide)
+        if not rednet.isOpen(self.modemSide) then
+            rednet.open(self.modemSide)
+        end
+        rednet.host(self.protocol, selfHostname)
     end
 
     return self
@@ -25,17 +32,31 @@ function Communicator:IsAvailable()
     return self.modemSide ~= nil
 end
 
+function Communicator:ResolvePeer()
+    if not self.peerId then
+        self.peerId = rednet.lookup(self.protocol, self.peerHostname)
+    end
+    return self.peerId
+end
+
 function Communicator:Broadcast(message)
-    if self:IsAvailable() then
-        rednet.broadcast(message, CONFIG.RednetProtocol)
+    if not self:IsAvailable() then return end
+
+    local peerId = self:ResolvePeer()
+    if peerId then
+        rednet.send(peerId, message, self.protocol)
+    else
+        rednet.broadcast(message, self.protocol)
     end
 end
 
 function Communicator:Listen(handlers)
     while true do
-        local _, message = rednet.receive(CONFIG.RednetProtocol)
-        local handler = handlers[message]
-        if handler then handler() end
+        local senderId, message = rednet.receive(self.protocol)
+        if senderId == self:ResolvePeer() then
+            local handler = handlers[message]
+            if handler then handler(message) end
+        end
     end
 end
 

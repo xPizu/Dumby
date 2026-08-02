@@ -5,10 +5,19 @@ return {
     ComfortableFuel = 200,
     CoalReserveKeep = 8,
     InventoryFullThreshold = 1,
-    MaxVeinDepth = 16,
+    MaxCaveDepth = 16,
     MaxRadius = 40,
+    LayerSpacing = 4,
+    LayerCount = 3,
     RednetProtocol = "dumby",
+    RednetTurtleHostname = "dumby-turtle",
+    RednetRemoteHostname = "dumby-remote",
     HeartbeatInterval = 10,
+
+    RednetChunkyProtocol = "dumby-chunky",
+    RednetMiningHostname = "dumby-mining",
+    RednetChunkyHostname = "dumby-chunky",
+    ChunkyFollowBuffer = 3,
 
     FuelItems = {
         ["minecraft:coal"] = true,

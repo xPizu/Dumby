@@ -12,17 +12,26 @@ function Navigator:New()
     local self = setmetatable({}, Navigator)
     self.x, self.y, self.z = 0, 0, 0
     self.facing = 1
+    self.OnMove = nil
     return self
+end
+
+-- Lets a follower turtle (e.g. the chunk-loading Chunky Turtle) replay the
+-- exact same movement sequence over rednet, one primitive at a time.
+function Navigator:notify(action)
+    if self.OnMove then self.OnMove(action) end
 end
 
 function Navigator:TurnRight()
     turtle.turnRight()
     self.facing = (self.facing % 4) + 1
+    self:notify("right")
 end
 
 function Navigator:TurnLeft()
     turtle.turnLeft()
     self.facing = ((self.facing - 2) % 4) + 1
+    self:notify("left")
 end
 
 function Navigator:FaceDirection(target)
@@ -48,6 +57,7 @@ function Navigator:Forward()
 
     local d = Navigator.DIRS[self.facing]
     self.x, self.z = self.x + d.dx, self.z + d.dz
+    self:notify("forward")
     return true
 end
 
@@ -78,6 +88,7 @@ function Navigator:Up()
     end
     
     self.y = self.y + 1
+    self:notify("up")
     return true
 end
 
@@ -97,6 +108,7 @@ function Navigator:Down()
     end
 
     self.y = self.y - 1
+    self:notify("down")
     return true
 end
 

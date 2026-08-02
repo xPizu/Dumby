@@ -6,8 +6,20 @@ rednet.open(peripheral.getName(MODEM))
 
 local SPEAKER = peripheral.find("speaker")
 local PROTOCOL = "dumby"
+local TURTLE_HOSTNAME = "dumby-turtle"
+local REMOTE_HOSTNAME = "dumby-remote"
 local BOOT_TIMEOUT = 5
 local ALIVE_TIMEOUT = 15
+
+rednet.host(PROTOCOL, REMOTE_HOSTNAME)
+
+local turtleId = nil
+local function ResolveTurtle()
+    if not turtleId then
+        turtleId = rednet.lookup(PROTOCOL, TURTLE_HOSTNAME)
+    end
+    return turtleId
+end
 
 local SOUND_ONLINE_URL = "https://files.catbox.moe/5mseje.dfpwm"
 local SOUND_OFFLINE_URL = "https://files.catbox.moe/yubhv5.dfpwm"
@@ -61,8 +73,9 @@ local function BootCheck()
     print("")
     print("Waiting for Dumby...")
 
-    local _, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
-    if message == "alive" then
+    local senderId, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
+    if message == "alive" and senderId == ResolveTurtle() then
+        turtleId = senderId
         print("Dumby is online !")
         PlayOnline()
     else
@@ -79,11 +92,19 @@ local function CommandLoop()
         
         local input = read()
         if input == "stop" then
-            rednet.broadcast("stop", PROTOCOL)
-            print("Return signal sent.")
+            if ResolveTurtle() then
+                rednet.send(turtleId, "stop", PROTOCOL)
+                print("Return signal sent.")
+            else
+                print("Dumby not found on the network.")
+            end
         elseif input == "start" then
-            rednet.broadcast("start", PROTOCOL)
-            print("Launch signal sent.")
+            if ResolveTurtle() then
+                rednet.send(turtleId, "start", PROTOCOL)
+                print("Launch signal sent.")
+            else
+                print("Dumby not found on the network.")
+            end
         elseif input == "clear" then
             ClearScreen()
             PrintHeader()
@@ -96,9 +117,11 @@ end
 -- Listening Loop: Listen for messages from Dumby. If no message is received within ALIVE_TIMEOUT seconds, assume Dumby is offline.
 local function ListenLoop()
     while true do
-        local _, message = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
+        local senderId, message = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
 
-        if message == "alive" then
+        if message ~= nil and senderId ~= ResolveTurtle() then
+            -- Ignore messages from anyone but our own turtle
+        elseif message == "alive" then
             -- Skip
         elseif message == "returning_home" then
             print("[i] Dumby is heading back home.")

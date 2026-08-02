@@ -13,7 +13,9 @@ function ROBOT:New()
     self.Navigator = NAVIGATOR:New()
     self.Fuel = FUEL_MANAGER:New()
     self.Inventory = INVENTORY_MANAGER:New()
-    self.Communicator = COMMUNICATOR:New()
+    self.Communicator = COMMUNICATOR:New(CONFIG.RednetProtocol, CONFIG.RednetTurtleHostname, CONFIG.RednetRemoteHostname)
+    self.ChunkyLink = COMMUNICATOR:New(CONFIG.RednetChunkyProtocol, CONFIG.RednetMiningHostname, CONFIG.RednetChunkyHostname)
+    self.Navigator.OnMove = function(action) self.ChunkyLink:Broadcast(action) end
     self.Explorer = EXPLORER:New(self.Fuel, self.Inventory)
     self.Started = false
     return self
