@@ -22,7 +22,7 @@ return {
     RednetGeoProtocol = "dumby-geo",
     RednetGeoHostname = "dumby-geo",
     GeoScanInterval = 2,
-    GeoBootOffset = { x = 0, y = 0, z = -1 },
+    GeoBootOffset = { x = 0, y = 0, z = -2 },
 
     FuelItems = {
         ["minecraft:coal"] = true,
