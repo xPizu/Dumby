@@ -11,7 +11,11 @@ function FuelManager:GetLevel()
     return turtle.getFuelLevel()
 end
 
-function FuelManager:AutoRefuel()
+-- reserve: how much fuel-item stock to leave unburned (defaults to
+-- CONFIG.CoalReserveKeep for the mining turtle, which keeps collecting more;
+-- pass 0 for a turtle with no other fuel source, e.g. the Chunky follower).
+function FuelManager:AutoRefuel(reserve)
+    reserve = reserve or CONFIG.CoalReserveKeep
     if turtle.getFuelLevel() >= CONFIG.ComfortableFuel then return end
 
     local total = 0
@@ -20,7 +24,7 @@ function FuelManager:AutoRefuel()
         if itemDetails and CONFIG.FuelItems[itemDetails.name] then total = total + itemDetails.count end
     end
 
-    local excess = total - CONFIG.CoalReserveKeep
+    local excess = total - reserve
     if excess <= 0 then return end
 
     for slot = 1, 16 do

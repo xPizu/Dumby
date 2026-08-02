@@ -30,7 +30,7 @@ local ACTIONS = {
 -- but never advances" -- so we warn loudly instead of failing silently.
 local outOfFuelWarned = false
 local function CheckFuel()
-    FUEL:AutoRefuel()
+    FUEL:AutoRefuel(0)
     local level = FUEL:GetLevel()
     if level == 0 then
         if not outOfFuelWarned then
