@@ -6,6 +6,7 @@ return {
     CoalReserveKeep = 8,
     InventoryFullThreshold = 1,
     MaxCaveDepth = 16,
+    GeoScanRadius = 8, -- radii 1-8 are free with a Geo Scanner, 9+ cost fuel
     MaxRadius = 40,
     LayerSpacing = 4,
     LayerCount = 3,

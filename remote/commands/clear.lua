@@ -1,8 +1,7 @@
 return {
     name = "clear",
-    description = "Clear the screen.",
+    description = "Clear the log area.",
     execute = function(ctx)
-        ctx.ui.Clear()
-        ctx.ui.PrintHeader(ctx.commandList)
+        ctx.redraw()
     end,
 }

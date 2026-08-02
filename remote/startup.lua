@@ -14,7 +14,9 @@ local ALIVE_TIMEOUT = 15
 rednet.host(PROTOCOL, REMOTE_HOSTNAME)
 
 local SOUND = SOUND_MODULE.New(peripheral.find("speaker"))
-local state = { turtleId = nil, online = false }
+
+-- state doubles as the live status shown in the dashboard header.
+local state = { turtleId = nil, online = false, fuel = nil, ore = nil, x = nil, y = nil, z = nil }
 
 local function Send(message)
     if state.turtleId then
@@ -35,11 +37,32 @@ for _, file in ipairs(fs.list("commands")) do
 end
 table.sort(commandList, function(a, b) return a.name < b.name end)
 
+-- The header (title/status/buttons) lives on the real terminal and is
+-- redrawn in place; a window below it holds the scrolling log/command
+-- prompt so neither ever overwrites the other.
+local mainTerm = term.current()
+local logWindow
+
 local ctx = { send = Send, log = LOG, state = state, commandList = commandList, sound = SOUND, ui = UI }
 
-UI.Clear()
-UI.PrintHeader(commandList)
-print("")
+-- clearLog: false preserves scrollback (used after a status update), true
+-- wipes it (used by the 'clear' command and on first draw).
+local function Redraw(clearLog)
+    term.redirect(mainTerm)
+    local w, h = term.getSize()
+    local rows, logStartY = UI.Draw(commandList, state)
+    ctx.commandRows = rows
+
+    if not logWindow or clearLog then
+        logWindow = window.create(mainTerm, 1, logStartY, w, math.max(1, h - logStartY + 1))
+    else
+        logWindow.reposition(1, logStartY, w, math.max(1, h - logStartY + 1))
+    end
+    term.redirect(logWindow)
+end
+
+ctx.redraw = function() Redraw(true) end
+Redraw(true)
 
 LOG.Info("Waiting for Dumby...")
 local senderId, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
@@ -52,7 +75,7 @@ else
     LOG.Warn("No signal received during " .. BOOT_TIMEOUT .. "s. Maybe Dumby is offline.")
     SOUND:PlayOffline()
 end
-print("")
+Redraw()
 
 local function CommandLoop()
     while true do
@@ -109,12 +132,15 @@ local MESSAGE_HANDLERS = {
     end,
 
     status_report = function(msg)
+        state.fuel, state.ore = msg.fuel, msg.ore
+        state.x, state.y, state.z = msg.x, msg.y, msg.z
         LOG.Ok(string.format(
             "pos(%d,%d,%d) fuel=%s ore=%d started=%s stop=%s",
             msg.x, msg.y, msg.z,
             tostring(msg.fuel), msg.ore,
             tostring(msg.started), tostring(msg.stopReason)
         ))
+        Redraw()
     end,
 }
 
@@ -131,13 +157,30 @@ local function ListenLoop()
                 LOG.Warn("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
                 SOUND:PlayOffline()
                 state.online = false
+                Redraw()
             end
         elseif senderId2 == state.turtleId and type(message2) == "table" then
-            state.online = true
+            if not state.online then
+                state.online = true
+                Redraw()
+            end
             local handler = MESSAGE_HANDLERS[message2.cmd]
             if handler then handler(message2) end
         end
     end
 end
 
-parallel.waitForAny(CommandLoop, ListenLoop)
+-- Menu Loop: on an Advanced Computer/Monitor, clicking a command name in the
+-- header runs it (zero-arg commands only -- 'goto'/'sound' still need typing).
+local function MenuClickLoop()
+    while true do
+        local _, _, _, y = os.pullEvent("mouse_click")
+        local cmd = ctx.commandRows[y]
+        if cmd then
+            LOG.Info("[click] " .. cmd.name)
+            cmd.execute(ctx, {})
+        end
+    end
+end
+
+parallel.waitForAny(CommandLoop, ListenLoop, MenuClickLoop)

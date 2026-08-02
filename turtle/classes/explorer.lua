@@ -44,6 +44,47 @@ function Explorer:CheckSafety(nav)
     return true
 end
 
+-- Geo Scanner support: sees ore buried under solid rock within radius, not
+-- just blocks touching the turtle's 6 faces -- this is what the blind
+-- adjacent-check kept walking right past. Falls back to doing nothing if no
+-- Geo Scanner is attached (the cave-follow logic below still works alone).
+function Explorer:ScanForOre(nav)
+    local geo = peripheral.find("geoScanner")
+    if not geo then return {} end
+
+    local blocks = geo.scan(CONFIG.GeoScanRadius)
+    if not blocks then return {} end
+
+    local targets = {}
+    for _, b in ipairs(blocks) do
+        if CONFIG.OreWhitelist[b.name] then
+            table.insert(targets, {
+                x = nav.x + b.x,
+                y = nav.y + b.y,
+                z = nav.z + b.z,
+                dist = math.abs(b.x) + math.abs(b.y) + math.abs(b.z),
+            })
+        end
+    end
+
+    table.sort(targets, function(a, b2) return a.dist < b2.dist end)
+    return targets
+end
+
+-- Walks straight to each detected ore block (closest first), digging
+-- through whatever's in the way -- Navigator already does that for free.
+function Explorer:MineTargets(nav)
+    for _, target in ipairs(self:ScanForOre(nav)) do
+        if not self:CheckSafety(nav) then return end
+
+        local beforeX, beforeY, beforeZ = nav.x, nav.y, nav.z
+        nav:GoTo(target.x, target.y, target.z)
+        if nav.x ~= beforeX or nav.y ~= beforeY or nav.z ~= beforeZ then
+            self.OreCount = self.OreCount + 1
+        end
+    end
+end
+
 -- Recurses into any open cavity (already air) or whitelisted ore, not just ore --
 -- this is what lets the turtle actually follow natural caves instead of      --
 -- stopping dead the moment a branch isn't a solid ore block.                 --
@@ -112,6 +153,7 @@ function Explorer:RunSpiralLayer(nav, maxRadius)
                 self.StopReason = "Unpassable obstacle"
                 return false
             end
+            self:MineTargets(nav)
             self:ScanAndMine(nav)
         end
 
