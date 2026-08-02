@@ -46,6 +46,9 @@ end
 -- round-trip and doing it per-message caused missed heartbeats and dropped
 -- stop commands. Instead we trust the first sender we ever hear from on this
 -- protocol and lock onto them -- fine for a 1-to-1 turtle/remote pairing.
+--
+-- Messages are {cmd = "...", ...extra fields}; handlers are keyed by cmd and
+-- receive the full message table.
 function Communicator:Listen(handlers)
     while true do
         local senderId, message = rednet.receive(self.protocol)
@@ -54,8 +57,8 @@ function Communicator:Listen(handlers)
             self.peerId = senderId
         end
 
-        if senderId == self.peerId then
-            local handler = handlers[message]
+        if senderId == self.peerId and type(message) == "table" then
+            local handler = handlers[message.cmd]
             if handler then handler(message) end
         end
     end

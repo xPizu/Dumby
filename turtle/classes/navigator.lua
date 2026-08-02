@@ -116,20 +116,28 @@ function Navigator:DistanceHome()
     return math.abs(self.x) + math.abs(self.y) + math.abs(self.z)
 end
 
+-- Straight-line move to any target (y first, then x, then z), digging through
+-- whatever's in the way. Used both for returning home and for "goto" jumps
+-- to a new exploration center.
+function Navigator:GoTo(targetX, targetY, targetZ)
+    while self.y > targetY do self:Down() end
+    while self.y < targetY do self:Up() end
+
+    local dx = targetX - self.x
+    if dx ~= 0 then
+        self:FaceDirection(dx > 0 and 4 or 2)
+        for _ = 1, math.abs(dx) do self:Forward() end
+    end
+
+    local dz = targetZ - self.z
+    if dz ~= 0 then
+        self:FaceDirection(dz > 0 and 3 or 1)
+        for _ = 1, math.abs(dz) do self:Forward() end
+    end
+end
+
 function Navigator:GoHome()
-    while self.y > 0 do self:Down() end
-    while self.y < 0 do self:Up() end
-
-    if self.x ~= 0 then
-        self:FaceDirection(self.x > 0 and 4 or 2)
-        for _ = 1, math.abs(self.x) do self:Forward() end
-    end
-
-    if self.z ~= 0 then
-        self:FaceDirection(self.z > 0 and 3 or 1)
-        for _ = 1, math.abs(self.z) do self:Forward() end
-    end
-
+    self:GoTo(0, 0, 0)
     self:FaceDirection(1)
 end
 

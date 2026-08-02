@@ -36,12 +36,32 @@ function ROBOT:CheckStartupFuel()
 end
 
 function ROBOT:ReturnHome()
-    self:Log("Return to base (" .. tostring(self.Explorer.StopReason or "mission complete") .. ")")
-    self.Communicator:Broadcast("returning_home")
+    local reason = self.Explorer.StopReason or "mission complete"
+    self:Log("Return to base (" .. reason .. ")")
+    self.Communicator:Broadcast({ cmd = "returning_home", reason = reason })
     self.Navigator:GoHome()
-    self.Inventory:Dump()
+    if not self.Explorer.Rescue then
+        self.Inventory:Dump()
+    end
     self.Fuel:AutoRefuel()
     self:Log("Returned to base. Found minerals: " .. self.Explorer.OreCount .. " | Fuel remaining: " .. tostring(self.Fuel:GetLevel()))
+end
+
+function ROBOT:Ack(of, detail)
+    self.Communicator:Broadcast({ cmd = "ack", of = of, detail = detail })
+end
+
+function ROBOT:SendStatus()
+    self.Communicator:Broadcast({
+        cmd = "status_report",
+        x = self.Navigator.x,
+        y = self.Navigator.y,
+        z = self.Navigator.z,
+        fuel = self.Fuel:GetLevel(),
+        ore = self.Explorer.OreCount,
+        started = self.Started,
+        stopReason = self.Explorer.StopReason,
+    })
 end
 
 function ROBOT:HeartbeatLoop()
@@ -50,7 +70,7 @@ function ROBOT:HeartbeatLoop()
     end
 
     while true do
-        self.Communicator:Broadcast("alive")
+        self.Communicator:Broadcast({ cmd = "alive" })
         sleep(CONFIG.HeartbeatInterval)
     end
 end
@@ -67,6 +87,12 @@ function ROBOT:Run()
                 sleep(0.5)
             end
             self:Log("Launching exploration mission...")
+            if self.PendingGoto then
+                local g = self.PendingGoto
+                self:Log("Heading to goto target (" .. g.x .. ", " .. g.y .. ", " .. g.z .. ")...")
+                self.Navigator:GoTo(g.x, g.y, g.z)
+                self.PendingGoto = nil
+            end
             self.Explorer:RunSpiral(self.Navigator, CONFIG.MaxRadius)
             self:ReturnHome()
         end,
@@ -75,14 +101,36 @@ function ROBOT:Run()
                 self.Communicator:Listen({
                     start = function()
                         self:Log("Launch signal received.")
-                        if not self.Started then
-                            self.Started = true
+                        if self.Started then
+                            self:Ack("start", "already started")
+                            return
                         end
+                        self.Started = true
+                        self:Ack("start")
                     end,
                     stop = function()
                         self:Log("Stop signal received.")
                         self.Explorer.StopRequested = true
-                    end
+                        self:Ack("stop")
+                    end,
+                    rescue = function()
+                        self:Log("RESCUE signal received! Abandoning mission, rushing home.")
+                        self.Explorer:TriggerRescue()
+                        self:Ack("rescue")
+                    end,
+                    status = function()
+                        self:SendStatus()
+                    end,
+                    goto_target = function(msg)
+                        if self.Started then
+                            self:Log("Ignoring goto: mission already started.")
+                            self:Ack("goto_target", "ignored, already started")
+                            return
+                        end
+                        self.PendingGoto = { x = msg.x, y = msg.y, z = msg.z }
+                        self:Log("Goto target set to (" .. msg.x .. ", " .. msg.y .. ", " .. msg.z .. ").")
+                        self:Ack("goto_target")
+                    end,
                 })
             else
                 self:Log("No wireless modem detected. Remote control is unavailable. The robot will run the exploration mission in 5 seconds.")

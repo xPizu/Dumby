@@ -8,14 +8,23 @@ function Explorer:New(fuel, inventory)
     self.Fuel = fuel
     self.Inventory = inventory
     self.StopRequested = false
+    self.Rescue = false
     self.StopReason = nil
     self.OreCount = 0
     return self
 end
 
+-- Rescue implies StopRequested (every existing safety check already respects
+-- it) but also skips inventory housekeeping on the way home -- see Robot:ReturnHome.
+function Explorer:TriggerRescue()
+    self.StopRequested = true
+    self.Rescue = true
+    self.StopReason = "Rescue triggered"
+end
+
 function Explorer:CheckSafety(nav)
     if self.StopRequested then
-        self.StopReason = "Stop order received"
+        self.StopReason = self.StopReason or "Stop order received"
         return false
     end
 
