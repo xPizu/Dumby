@@ -83,8 +83,9 @@ function Explorer:ScanAndMine(nav, depth)
 
     local originalFacing = nav.facing
     self:MineVeinAt(nav, "up", depth)
-    self:MineVeinAt(nav, "down", depth)
+    if not self.StopRequested then self:MineVeinAt(nav, "down", depth) end
     for f = 1, 4 do
+        if self.StopRequested then break end
         self:MineVeinAt(nav, f, depth)
     end
     nav:FaceDirection(originalFacing)
