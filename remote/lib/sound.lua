@@ -1,4 +1,4 @@
-local dfpwm = require("cc.audio.dfpwm")
+.local dfpwm = require("cc.audio.dfpwm")
 
 local Sound = {}
 Sound.__index = Sound
@@ -9,7 +9,8 @@ local URLS = {
     returning = "https://files.catbox.moe/76gehs.dfpwm",
     alert = "https://files.catbox.moe/b40ehy.dfpwm",
     lowFuel = "https://files.catbox.moe/j0rhvj.dfpwm",
-    rescue = "https://files.catbox.moe/vfrj1y.dfpwm",
+    rescue = "https://files.catbox.moe/gqvhy0.dfpwm",
+    inventoryFull = "https://files.catbox.moe/vfrj1y.dfpwm",
 }
 
 function Sound.New(speaker)
@@ -43,5 +44,6 @@ function Sound:PlayReturn() self:Play(URLS.returning) end
 function Sound:PlayAlert() self:Play(URLS.alert) end
 function Sound:PlayLowFuel() self:Play(URLS.lowFuel) end
 function Sound:PlayRescue() self:Play(URLS.rescue) end
+function Sound:PlayInventoryFull() self:Play(URLS.inventoryFull) end
 
 return Sound

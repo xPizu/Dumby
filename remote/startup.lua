@@ -8,21 +8,13 @@ rednet.open(peripheral.getName(MODEM))
 
 local PROTOCOL = "dumby"
 local REMOTE_HOSTNAME = "dumby-remote"
--- Must stay >= the turtle's heartbeat interval (10s), otherwise BootCheck's
--- single receive can land in the gap between two heartbeats and wrongly
--- report Dumby as offline even though it's up and broadcasting fine.
 local BOOT_TIMEOUT = 15
 local ALIVE_TIMEOUT = 15
 
 rednet.host(PROTOCOL, REMOTE_HOSTNAME)
 
 local SOUND = SOUND_MODULE.New(peripheral.find("speaker"))
-
--- No live rednet.lookup here: it's a blocking network round-trip and doing
--- it per-message caused missed heartbeats and dropped stop commands. We
--- trust the first sender we ever hear from on this protocol and lock onto
--- them -- fine for a 1-to-1 turtle/remote pairing.
-local state = { turtleId = nil }
+local state = { turtleId = nil, online = false }
 
 local function Send(message)
     if state.turtleId then
@@ -32,9 +24,6 @@ local function Send(message)
     end
 end
 
--- Commands: one file per command in commands/, each returning
--- { name, description, execute(ctx, args) }. Drop a new file in there and
--- it's picked up automatically, no wiring needed here.
 local commands = {}
 local commandList = {}
 for _, file in ipairs(fs.list("commands")) do
@@ -52,11 +41,11 @@ UI.Clear()
 UI.PrintHeader(commandList)
 print("")
 
--- Boot Check: wait for Dumby's first heartbeat, or assume it's offline.
 LOG.Info("Waiting for Dumby...")
 local senderId, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
 if type(message) == "table" and message.cmd == "alive" then
     state.turtleId = senderId
+    state.online = true
     LOG.Ok("Dumby is online!")
     SOUND:PlayOnline()
 else
@@ -65,7 +54,6 @@ else
 end
 print("")
 
--- Command Loop: read user input, dispatch to the matching command file.
 local function CommandLoop()
     while true do
         io.write("> ")
@@ -86,9 +74,50 @@ local function CommandLoop()
     end
 end
 
--- Listening Loop: handle unsolicited messages from Dumby (heartbeat,
--- returning home, status replies). If nothing arrives for ALIVE_TIMEOUT
--- seconds, assume Dumby is offline.
+local RETURN_REASONS = {
+    ["Unpassable obstacle"] = { level = "Crit", text = "STUCK (unpassable obstacle) and heading back home.", sound = "PlayAlert" },
+    ["Insufficient fuel"] = { level = "Warn", text = "low on fuel and heading back home.", sound = "PlayLowFuel" },
+    ["Inventory full"] = { level = "Warn", text = "inventory is full and heading back home.", sound = "PlayInventoryFull" },
+}
+
+local ACK_SOUNDS = {
+    rescue = "PlayRescue",
+    stop = "PlayReturn",
+}
+
+local MESSAGE_HANDLERS = {
+    alive = function() end,
+
+    ack = function(msg)
+        if msg.detail then
+            LOG.Warn("Dumby confirmed '" .. msg.of .. "' (" .. msg.detail .. ")")
+            return
+        end
+        LOG.Ok("Dumby confirmed '" .. msg.of .. "'.")
+        local sound = ACK_SOUNDS[msg.of]
+        if sound then SOUND[sound](SOUND) end
+    end,
+
+    returning_home = function(msg)
+        local info = RETURN_REASONS[msg.reason]
+        if not info then
+            LOG.Info("Dumby is heading back home (" .. tostring(msg.reason) .. ").")
+            return
+        end
+        LOG[info.level]("Dumby is " .. info.text)
+        SOUND[info.sound](SOUND)
+    end,
+
+    status_report = function(msg)
+        LOG.Ok(string.format(
+            "pos(%d,%d,%d) fuel=%s ore=%d started=%s stop=%s",
+            msg.x, msg.y, msg.z,
+            tostring(msg.fuel), msg.ore,
+            tostring(msg.started), tostring(msg.stopReason)
+        ))
+    end,
+}
+
 local function ListenLoop()
     while true do
         local senderId2, message2 = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
@@ -98,40 +127,15 @@ local function ListenLoop()
         end
 
         if message2 == nil then
-            LOG.Warn("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
-            SOUND:PlayOffline()
-        elseif senderId2 ~= state.turtleId or type(message2) ~= "table" then
-            -- Ignore anyone but our own turtle
-        elseif message2.cmd == "alive" then
-            -- Skip
-        elseif message2.cmd == "ack" then
-            if message2.detail then
-                LOG.Warn("Dumby confirmed '" .. message2.of .. "' (" .. message2.detail .. ")")
-            else
-                LOG.Ok("Dumby confirmed '" .. message2.of .. "'.")
-                if message2.of == "rescue" then SOUND:PlayRescue() end
+            if state.online then
+                LOG.Warn("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
+                SOUND:PlayOffline()
+                state.online = false
             end
-        elseif message2.cmd == "returning_home" then
-            if message2.reason == "Unpassable obstacle" then
-                LOG.Crit("Dumby is STUCK (unpassable obstacle) and heading back home.")
-                SOUND:PlayAlert()
-            elseif message2.reason == "Insufficient fuel" then
-                LOG.Warn("Dumby is low on fuel and heading back home.")
-                SOUND:PlayLowFuel()
-            elseif message2.reason == "Inventory full" then
-                LOG.Warn("Dumby's inventory is full and heading back home.")
-                SOUND:PlayLowFuel()
-            else
-                LOG.Info("Dumby is heading back home (" .. tostring(message2.reason) .. ").")
-                SOUND:PlayReturn()
-            end
-        elseif message2.cmd == "status_report" then
-            LOG.Ok(string.format(
-                "pos(%d,%d,%d) fuel=%s ore=%d started=%s stop=%s",
-                message2.x, message2.y, message2.z,
-                tostring(message2.fuel), message2.ore,
-                tostring(message2.started), tostring(message2.stopReason)
-            ))
+        elseif senderId2 == state.turtleId and type(message2) == "table" then
+            state.online = true
+            local handler = MESSAGE_HANDLERS[message2.cmd]
+            if handler then handler(message2) end
         end
     end
 end

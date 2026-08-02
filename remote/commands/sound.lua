@@ -1,5 +1,3 @@
--- Debug helper: play any registered sound locally without needing the
--- turtle to trigger the real event.
 local SOUNDS = {
     online = "PlayOnline",
     offline = "PlayOffline",
@@ -7,6 +5,7 @@ local SOUNDS = {
     alert = "PlayAlert",
     lowfuel = "PlayLowFuel",
     rescue = "PlayRescue",
+    inventoryfull = "PlayInventoryFull",
 }
 
 local NAMES = {}
