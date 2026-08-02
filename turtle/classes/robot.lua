@@ -74,12 +74,13 @@ function ROBOT:Run()
             if self.Communicator:IsAvailable() then
                 self.Communicator:Listen({
                     start = function()
+                        self:Log("Launch signal received.")
                         if not self.Started then
                             self.Started = true
-                            self:Log("Launch signal received.")
-                        end 
+                        end
                     end,
                     stop = function()
+                        self:Log("Stop signal received.")
                         self.Explorer.StopRequested = true
                     end
                 })

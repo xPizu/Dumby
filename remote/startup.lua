@@ -7,7 +7,10 @@ rednet.open(peripheral.getName(MODEM))
 local SPEAKER = peripheral.find("speaker")
 local PROTOCOL = "dumby"
 local REMOTE_HOSTNAME = "dumby-remote"
-local BOOT_TIMEOUT = 5
+-- Must stay >= the turtle's heartbeat interval (10s), otherwise BootCheck's
+-- single receive can land in the gap between two heartbeats and wrongly
+-- report Dumby as offline even though it's up and broadcasting fine.
+local BOOT_TIMEOUT = 15
 local ALIVE_TIMEOUT = 15
 
 rednet.host(PROTOCOL, REMOTE_HOSTNAME)
