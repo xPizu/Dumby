@@ -1,4 +1,4 @@
-.local dfpwm = require("cc.audio.dfpwm")
+local dfpwm = require("cc.audio.dfpwm")
 
 local Sound = {}
 Sound.__index = Sound
