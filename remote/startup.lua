@@ -46,7 +46,7 @@ for _, file in ipairs(fs.list("commands")) do
 end
 table.sort(commandList, function(a, b) return a.name < b.name end)
 
-local ctx = { send = Send, log = LOG, state = state, commandList = commandList, sound = SOUND }
+local ctx = { send = Send, log = LOG, state = state, commandList = commandList, sound = SOUND, ui = UI }
 
 UI.Clear()
 UI.PrintHeader(commandList)
