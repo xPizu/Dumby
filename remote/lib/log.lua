@@ -1,31 +1,20 @@
--- Severity-tagged console output. Falls back to plain tags on non-color
--- terminals (basic Computer, no Advanced Computer / Monitor).
+local THEME = require("lib.theme")
+
 local Log = {}
 
-local TAGS = {
-    ok = "[OK]",
-    warn = "[WARN]",
-    crit = "[CRIT]",
-    info = "[i]",
-}
+function Log.New(ui)
+    local self = {}
 
-local COLORS = {
-    ok = colors.green,
-    warn = colors.yellow,
-    crit = colors.red,
-    info = colors.white,
-}
+    local function emit(level, msg)
+        ui.log("[" .. level:upper() .. "] " .. msg, THEME.logColors[level])
+    end
 
-local function write(level, msg)
-    local isColor = term.isColor and term.isColor()
-    if isColor then term.setTextColor(COLORS[level]) end
-    print(TAGS[level] .. " " .. msg)
-    if isColor then term.setTextColor(colors.white) end
+    function self.Info(msg) emit("info", msg) end
+    function self.Ok(msg) emit("ok", msg) end
+    function self.Warn(msg) emit("warn", msg) end
+    function self.Crit(msg) emit("crit", msg) end
+
+    return self
 end
-
-function Log.Info(msg) write("info", msg) end
-function Log.Ok(msg) write("ok", msg) end
-function Log.Warn(msg) write("warn", msg) end
-function Log.Crit(msg) write("crit", msg) end
 
 return Log

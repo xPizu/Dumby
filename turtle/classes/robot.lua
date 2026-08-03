@@ -62,6 +62,7 @@ function ROBOT:SendStatus()
         ore = self.Explorer.OreCount,
         started = self.Started,
         stopReason = self.Explorer.StopReason,
+        simulation = CONFIG.SimulationMode,
     })
 end
 
@@ -87,7 +88,7 @@ function ROBOT:HeartbeatLoop()
     end
 
     while true do
-        self.Communicator:Broadcast({ cmd = "alive" })
+        self.Communicator:Broadcast({ cmd = "alive", simulation = CONFIG.SimulationMode })
         sleep(CONFIG.HeartbeatInterval)
     end
 end

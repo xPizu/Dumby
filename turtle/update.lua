@@ -9,6 +9,7 @@ local FILES = {
     "classes/robot.lua",
     "classes/managers/fuel.lua",
     "classes/managers/inventory.lua",
+    "classes/sim_turtle.lua",
 }
 
 for _, path in ipairs(FILES) do

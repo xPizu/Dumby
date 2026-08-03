@@ -1,5 +1,9 @@
 -- Dumby (Configuration File)
 return {
+    -- Dry-run: no real movement/digging/fuel use, everything else (rednet,
+    -- remote control, Chunky/Geo links) stays real. See classes/sim_turtle.lua.
+    SimulationMode = false,
+
     MinStartFuel = 10,
     FuelSafetyMargin = 15,
     ComfortableFuel = 200,

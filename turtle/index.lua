@@ -1,3 +1,9 @@
+local CONFIG = require("config")
+
+if CONFIG.SimulationMode then
+    require("classes.sim_turtle").Install()
+end
+
 local ROBOT = require("classes.robot")
 
 local ok, err = pcall(function() ROBOT:New():Run() end)

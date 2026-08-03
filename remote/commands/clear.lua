@@ -1,7 +1,7 @@
 return {
     name = "clear",
-    description = "Clear the log area.",
+    description = "Clear the log tab.",
     execute = function(ctx)
-        ctx.redraw()
+        ctx.ui.clearLog()
     end,
 }

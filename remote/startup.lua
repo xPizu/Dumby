@@ -1,6 +1,7 @@
-local LOG = require("lib.log")
-local UI = require("lib.ui")
+local basalt = require("basalt")
+local LOG_MODULE = require("lib.log")
 local SOUND_MODULE = require("lib.sound")
+local Dashboard = require("ui.dashboard")
 
 local MODEM = peripheral.find("modem")
 if not MODEM then error("No modem found on this computer.") end
@@ -8,15 +9,12 @@ rednet.open(peripheral.getName(MODEM))
 
 local PROTOCOL = "dumby"
 local REMOTE_HOSTNAME = "dumby-remote"
-local BOOT_TIMEOUT = 15
 local ALIVE_TIMEOUT = 15
 
 rednet.host(PROTOCOL, REMOTE_HOSTNAME)
 
 local SOUND = SOUND_MODULE.New(peripheral.find("speaker"))
-
--- state doubles as the live status shown in the dashboard header.
-local state = { turtleId = nil, online = false, fuel = nil, ore = nil, x = nil, y = nil, z = nil }
+local state = { turtleId = nil, online = false, simulation = false, fuel = nil, ore = nil, x = nil, y = nil, z = nil }
 
 local function Send(message)
     if state.turtleId then
@@ -37,65 +35,25 @@ for _, file in ipairs(fs.list("commands")) do
 end
 table.sort(commandList, function(a, b) return a.name < b.name end)
 
--- The header (title/status/buttons) lives on the real terminal and is
--- redrawn in place; a window below it holds the scrolling log/command
--- prompt so neither ever overwrites the other.
-local mainTerm = term.current()
-local logWindow
+local ctx = { send = Send, state = state, commandList = commandList, sound = SOUND }
 
-local ctx = { send = Send, log = LOG, state = state, commandList = commandList, sound = SOUND, ui = UI }
-
--- clearLog: false preserves scrollback (used after a status update), true
--- wipes it (used by the 'clear' command and on first draw).
-local function Redraw(clearLog)
-    term.redirect(mainTerm)
-    local w, h = term.getSize()
-    local hitboxes, logStartY = UI.Draw(commandList, state)
-    ctx.hitboxes = hitboxes
-
-    if not logWindow or clearLog then
-        logWindow = window.create(mainTerm, 1, logStartY, w, math.max(1, h - logStartY + 1))
-    else
-        logWindow.reposition(1, logStartY, w, math.max(1, h - logStartY + 1))
-    end
-    term.redirect(logWindow)
-end
-
-ctx.redraw = function() Redraw(true) end
-Redraw(true)
-
-LOG.Info("Waiting for Dumby...")
-local senderId, message = rednet.receive(PROTOCOL, BOOT_TIMEOUT)
-if type(message) == "table" and message.cmd == "alive" then
-    state.turtleId = senderId
-    state.online = true
-    LOG.Ok("Dumby is online!")
-    SOUND:PlayOnline()
-else
-    LOG.Warn("No signal received during " .. BOOT_TIMEOUT .. "s. Maybe Dumby is offline.")
-    SOUND:PlayOffline()
-end
-Redraw()
-
-local function CommandLoop()
-    while true do
-        io.write("> ")
-        local input = read()
-
+local ui = Dashboard.Build(commandList, {
+    onButtonClick = function(cmd) cmd.execute(ctx, {}) end,
+    onSubmit = function(text)
         local args = {}
-        for word in input:gmatch("%S+") do table.insert(args, word) end
+        for word in text:gmatch("%S+") do table.insert(args, word) end
         local name = table.remove(args, 1)
-
-        if name then
-            local cmd = commands[name]
-            if cmd then
-                cmd.execute(ctx, args)
-            else
-                LOG.Warn("Unknown command '" .. name .. "'. Type 'help' for the list.")
-            end
+        local cmd = name and commands[name]
+        if cmd then
+            cmd.execute(ctx, args)
+        else
+            ctx.log.Warn("Unknown command '" .. tostring(name) .. "'.")
         end
-    end
-end
+    end,
+})
+
+ctx.log = LOG_MODULE.New(ui)
+ctx.ui = ui
 
 local RETURN_REASONS = {
     ["Unpassable obstacle"] = { level = "Crit", text = "STUCK (unpassable obstacle) and heading back home.", sound = "PlayAlert" },
@@ -109,14 +67,17 @@ local ACK_SOUNDS = {
 }
 
 local MESSAGE_HANDLERS = {
-    alive = function() end,
+    alive = function(msg)
+        state.simulation = msg.simulation or false
+        ui.setStatus(state.online, state.simulation)
+    end,
 
     ack = function(msg)
         if msg.detail then
-            LOG.Warn("Dumby confirmed '" .. msg.of .. "' (" .. msg.detail .. ")")
+            ctx.log.Warn("Dumby confirmed '" .. msg.of .. "' (" .. msg.detail .. ")")
             return
         end
-        LOG.Ok("Dumby confirmed '" .. msg.of .. "'.")
+        ctx.log.Ok("Dumby confirmed '" .. msg.of .. "'.")
         local sound = ACK_SOUNDS[msg.of]
         if sound then SOUND[sound](SOUND) end
     end,
@@ -124,63 +85,56 @@ local MESSAGE_HANDLERS = {
     returning_home = function(msg)
         local info = RETURN_REASONS[msg.reason]
         if not info then
-            LOG.Info("Dumby is heading back home (" .. tostring(msg.reason) .. ").")
+            ctx.log.Info("Dumby is heading back home (" .. tostring(msg.reason) .. ").")
             return
         end
-        LOG[info.level]("Dumby is " .. info.text)
+        ctx.log[info.level]("Dumby is " .. info.text)
         SOUND[info.sound](SOUND)
     end,
 
     status_report = function(msg)
         state.fuel, state.ore = msg.fuel, msg.ore
         state.x, state.y, state.z = msg.x, msg.y, msg.z
-        LOG.Ok(string.format(
+        state.simulation = msg.simulation or false
+        ui.setStats(msg.fuel, msg.ore, msg.x, msg.y, msg.z)
+        ui.setStatus(state.online, state.simulation)
+        ctx.log.Ok(string.format(
             "pos(%d,%d,%d) fuel=%s ore=%d started=%s stop=%s",
             msg.x, msg.y, msg.z,
             tostring(msg.fuel), msg.ore,
             tostring(msg.started), tostring(msg.stopReason)
         ))
-        Redraw()
     end,
 }
 
+local function SetOnline(online)
+    if state.online == online then return end
+    state.online = online
+    ui.setStatus(state.online, state.simulation)
+end
+
 local function ListenLoop()
+    ctx.log.Info("Waiting for Dumby...")
     while true do
-        local senderId2, message2 = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
+        local senderId, message = rednet.receive(PROTOCOL, ALIVE_TIMEOUT)
 
-        if not state.turtleId and senderId2 then
-            state.turtleId = senderId2
+        if not state.turtleId and senderId then
+            state.turtleId = senderId
         end
 
-        if message2 == nil then
+        if message == nil then
             if state.online then
-                LOG.Warn("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
+                ctx.log.Warn("No signal from Dumby during " .. ALIVE_TIMEOUT .. "s")
                 SOUND:PlayOffline()
-                state.online = false
-                Redraw()
+                SetOnline(false)
             end
-        elseif senderId2 == state.turtleId and type(message2) == "table" then
-            if not state.online then
-                state.online = true
-                Redraw()
-            end
-            local handler = MESSAGE_HANDLERS[message2.cmd]
-            if handler then handler(message2) end
+        elseif senderId == state.turtleId and type(message) == "table" then
+            SetOnline(true)
+            local handler = MESSAGE_HANDLERS[message.cmd]
+            if handler then handler(message) end
         end
     end
 end
 
--- Menu Loop: on an Advanced Computer/Monitor, clicking a command name in the
--- header runs it (zero-arg commands only -- 'goto'/'sound' still need typing).
-local function MenuClickLoop()
-    while true do
-        local _, _, x, y = os.pullEvent("mouse_click")
-        local cmd = UI.HitTest(ctx.hitboxes, x, y)
-        if cmd then
-            LOG.Info("[click] " .. cmd.name)
-            cmd.execute(ctx, {})
-        end
-    end
-end
-
-parallel.waitForAny(CommandLoop, ListenLoop, MenuClickLoop)
+basalt.schedule(ListenLoop)
+basalt.run()

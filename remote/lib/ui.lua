@@ -54,12 +54,6 @@ local function drawButton(x, y, cmd)
     term.setTextColor(colors.white)
 end
 
--- Draws the fixed header (title, live status, a grid of plain colored
--- buttons -- name only, no description text) on whatever terminal is
--- currently active. Returns:
---   hitboxes -- list of {x1,y1,x2,y2,cmd} for click handling
---   nextY    -- first free row below the header, where the scrolling log
---               window should start
 function UI.Draw(commandList, status)
     local w = term.getSize()
 
@@ -83,6 +77,10 @@ function UI.Draw(commandList, status)
     term.setCursorPos(1, 4)
     term.clearLine()
     pill(status.online and "ONLINE" or "OFFLINE", status.online and colors.lime or colors.red)
+    if status.simulation then
+        term.write(" ")
+        pill("SIM", colors.purple)
+    end
     if status.fuel then
         term.setTextColor(colors.lightGray)
         term.write(string.format("  fuel:%s  ore:%s  pos(%d,%d,%d)",
@@ -116,7 +114,6 @@ function UI.Draw(commandList, status)
     return hitboxes, nextY + 1
 end
 
--- Finds which button (if any) a mouse_click's screen coordinates hit.
 function UI.HitTest(hitboxes, x, y)
     for _, box in ipairs(hitboxes) do
         if x >= box.x1 and x <= box.x2 and y >= box.y1 and y <= box.y2 then
